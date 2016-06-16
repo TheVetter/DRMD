@@ -179,7 +179,7 @@ static State stateReadUV() {
   switch (bcm2835_i2c_read(buffer, 2)) {
     case BCM2835_I2C_REASON_OK:
       voltage = buffer[0] << 8 | buffer[1];
-	  printf("voltage = %",voltage);
+	  printf("voltage = %f \n",voltage);
       sum += voltage;
       count++;
       break;
