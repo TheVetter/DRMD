@@ -16,11 +16,14 @@ static State      stateMoveStepper();
 static State      stateReadUV();
 static State      stateUI();
 static void       writeToPin(uint8_t, uint8_t);
+static void       calculateMedian();
 
+static char       Version = ".2";
 static Bool       sigint_set = FALSE;
 static State      state = UI;
 static uint8_t    buffer[2];
 static uint16_t   voltage;
+static uint16_t   sample[15];
 static int        stepper_position = 0; // In microsteps, not mm
 static int        stepper_target = 0; // In microsteps, not mm
 static uint16_t   stepper_rpm = 100;
@@ -113,7 +116,9 @@ static int initialize() {
   configInput(nHOME, PULLUP);
 
   signal(SIGINT, interrupt); // Set interrupt(int) to handle Ctrl+c events
-
+	
+	printf("Running Drug Release m Device. Version %", Version);
+	
   return 0;
 }
 
@@ -173,14 +178,17 @@ static int setTargetPosition(float distance_mm) {
 static State stateReadUV() {
   static int count = 0;
   static int sum = 0;
-  //  static int sdf = 50;
+  
   bcm2835_i2c_setSlaveAddress(0b00010100); // Select UV LED ADC
 
   switch (bcm2835_i2c_read(buffer, 2)) {
     case BCM2835_I2C_REASON_OK:
       voltage = buffer[0] << 8 | buffer[1];
-	  printf("voltage = %f \n",((float)voltage / 65536));
-      sum += voltage;
+	  
+	  printf("voltage = %f \n",((float)voltage));
+      sample[count] = voltage;  // populate sample array 
+	 
+	  sum += voltage;
       count++;
       break;
     case BCM2835_I2C_REASON_ERROR_NACK:
@@ -189,14 +197,34 @@ static State stateReadUV() {
       break;
   } 
 
-  if (count >= 15) {
-    printf("%.2f %%\n", ((float)sum / count / 65536 * 100));
+  if (count >= 20) {
+    
+	calculateMedian();
+	printf("%.2f %%\n", ((float)sum / count / 65536 * 100));
     count = 0;
     sum = 0;
   }
 
   return READ_UV;
 }
+
+static void calculateMedian(){
+	uint16_t sum = 0;
+	uint16_t temp = 0;
+	int count = 0;
+	for(int x = 1; x < 19; x++){
+		temp = voltage[x-1] + voltage[x] + voltage[x+1]; // find median of the window 
+		temp -= fmax(voltage[x-1], fmax(voltage[x+1],voltage[x]));
+		temp -= fmin(voltage[x-1], fmin(voltage[x+1],voltage[x]));
+	 sum += temp;
+	 temp = 0; 
+	 count++;
+	}
+	 printf("voltage = %f  \t", (float)(sum/count));
+	
+}
+
+
 
 static State stateMoveStepper() {
   static int64_t prevtime_ns = 0;
