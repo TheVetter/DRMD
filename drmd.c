@@ -1,4 +1,4 @@
-#include "drmd.h"
+﻿#include "drmd.h"
 
 typedef enum { TRUE, FALSE } Bool;
 typedef enum { MOVE_STEPPER, READ_UV, UI } State;
@@ -173,13 +173,13 @@ static int setTargetPosition(float distance_mm) {
 static State stateReadUV() {
   static int count = 0;
   static int sum = 0;
-
+  //  static int sdf = 50;
   bcm2835_i2c_setSlaveAddress(0b00010100); // Select UV LED ADC
 
   switch (bcm2835_i2c_read(buffer, 2)) {
     case BCM2835_I2C_REASON_OK:
       voltage = buffer[0] << 8 | buffer[1];
-	  printf("voltage = %f \n",voltage);
+	  printf("voltage = %f \n",((float)voltage / 65536));
       sum += voltage;
       count++;
       break;
