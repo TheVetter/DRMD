@@ -1,5 +1,7 @@
 ﻿#include "drmd.h"
 
+#include "math.h"
+
 typedef enum { TRUE, FALSE } Bool;
 typedef enum { MOVE_STEPPER, READ_UV, UI } State;
 
@@ -16,14 +18,13 @@ static State      stateMoveStepper();
 static State      stateReadUV();
 static State      stateUI();
 static void       writeToPin(uint8_t, uint8_t);
-static void       calculateMedian();
+static float       calculateMedian(int[]);
 
-static char       Version = ".2";
+//static char       Version = ".2";
 static Bool       sigint_set = FALSE;
 static State      state = UI;
 static uint8_t    buffer[2];
 static uint16_t   voltage;
-static uint16_t   sample[15];
 static int        stepper_position = 0; // In microsteps, not mm
 static int        stepper_target = 0; // In microsteps, not mm
 static uint16_t   stepper_rpm = 100;
@@ -117,7 +118,7 @@ static int initialize() {
 
   signal(SIGINT, interrupt); // Set interrupt(int) to handle Ctrl+c events
 	
-	printf("Running Drug Release m Device. Version %", Version);
+	//printf("Running Drug Release m Device. Version %", Version);
 	
   return 0;
 }
@@ -178,17 +179,16 @@ static int setTargetPosition(float distance_mm) {
 static State stateReadUV() {
   static int count = 0;
   static int sum = 0;
+  static int sample[100];
+  
   
   bcm2835_i2c_setSlaveAddress(0b00010100); // Select UV LED ADC
 
   switch (bcm2835_i2c_read(buffer, 2)) {
     case BCM2835_I2C_REASON_OK:
       voltage = buffer[0] << 8 | buffer[1];
-	  
-	  printf("voltage = %f \n",((float)voltage));
       sample[count] = voltage;  // populate sample array 
-	 
-	  sum += voltage;
+      sum += voltage;
       count++;
       break;
     case BCM2835_I2C_REASON_ERROR_NACK:
@@ -197,10 +197,9 @@ static State stateReadUV() {
       break;
   } 
 
-  if (count >= 20) {
-    
-	calculateMedian();
-	printf("%.2f %%\n", ((float)sum / count / 65536 * 100));
+  if (count >= 99) {
+	
+	printf("new %f  old %f %%\n ",(float)(calculateMedian(sample) ),((float)sum / count )); /// 65536 * 100
     count = 0;
     sum = 0;
   }
@@ -208,20 +207,28 @@ static State stateReadUV() {
   return READ_UV;
 }
 
-static void calculateMedian(){
-	uint16_t sum = 0;
-	uint16_t temp = 0;
+static float calculateMedian(int sample[]){
+	static int q = 0; 
+	int sum = 0;
+	int temp[sizeof(sample)-2];
 	int count = 0;
-	for(int x = 1; x < 19; x++){
-		temp = voltage[x-1] + voltage[x] + voltage[x+1]; // find median of the window 
-		temp -= fmax(voltage[x-1], fmax(voltage[x+1],voltage[x]));
-		temp -= fmin(voltage[x-1], fmin(voltage[x+1],voltage[x]));
-	 sum += temp;
-	 temp = 0; 
-	 count++;
+	for(int x = 1; x < sizeof(sample)-2; x++){
+		temp[x-1] = sample[x-1] + sample[x] + sample[x+1]; // find median of the window 
+		temp[x-1] -= fmax(sample[x-1], fmax(sample[x+1],sample[x]));
+		temp[x-1] -= fmin(sample[x-1], fmin(sample[x+1],sample[x]));
+	 	sum += temp[x-1];
+		count++;
 	}
-	 printf("voltage = %f  \t", (float)(sum/count));
 	
+	q++;
+	
+	if(q <= 5){
+		q=0;
+	    return calculateMedian(temp);
+	}
+	else{
+		return (float)sum/count;
+	}
 }
 
 
