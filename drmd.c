@@ -1,6 +1,6 @@
-﻿#include "drmd.h"
+#include "drmd.h"
+#include "Python.h"
 
-#include "math.h"
 
 typedef enum { TRUE, FALSE } Bool;
 typedef enum { MOVE_STEPPER, READ_UV, UI } State;
@@ -18,9 +18,7 @@ static State      stateMoveStepper();
 static State      stateReadUV();
 static State      stateUI();
 static void       writeToPin(uint8_t, uint8_t);
-static float       calculateMedian(int[]);
 
-//static char       Version = ".2";
 static Bool       sigint_set = FALSE;
 static State      state = UI;
 static uint8_t    buffer[2];
@@ -117,9 +115,7 @@ static int initialize() {
   configInput(nHOME, PULLUP);
 
   signal(SIGINT, interrupt); // Set interrupt(int) to handle Ctrl+c events
-	
-	//printf("Running Drug Release m Device. Version %", Version);
-	
+
   return 0;
 }
 
@@ -135,16 +131,16 @@ static void interrupt(int signo) {
   }
 }
 
-static State machine(State state) {
-  switch (state) {
-    case MOVE_STEPPER:
-      return stateMoveStepper();
-    case READ_UV:
-      return stateReadUV();
-    case UI:
-      return stateUI();
-  }
-}
+// static State machine(State state) {
+  // switch (state) {
+    // case MOVE_STEPPER:
+      // return stateMoveStepper();
+    // case READ_UV:
+      // return stateReadUV();
+    // case UI:
+      // return stateUI();
+  // }
+// }
 
 static uint8_t readPin(uint8_t pin) {
   return bcm2835_gpio_lev(pin);
@@ -179,15 +175,12 @@ static int setTargetPosition(float distance_mm) {
 static State stateReadUV() {
   static int count = 0;
   static int sum = 0;
-  static int sample[100];
-  
-  
+
   bcm2835_i2c_setSlaveAddress(0b00010100); // Select UV LED ADC
 
   switch (bcm2835_i2c_read(buffer, 2)) {
     case BCM2835_I2C_REASON_OK:
       voltage = buffer[0] << 8 | buffer[1];
-      sample[count] = voltage;  // populate sample array 
       sum += voltage;
       count++;
       break;
@@ -197,41 +190,14 @@ static State stateReadUV() {
       break;
   } 
 
-  if (count >= 99) {
-	
-	printf("new %f  old %f %%\n ",(float)(calculateMedian(sample) ),((float)sum / count )); /// 65536 * 100
+  if (count >= 15) {
+    printf("%.2f Q %%\n", ((float)sum / count / 65536 * 100));
     count = 0;
     sum = 0;
   }
 
   return READ_UV;
 }
-
-static float calculateMedian(int sample[]){
-	static int q = 0; 
-	int sum = 0;
-	int temp[sizeof(sample)-2];
-	int count = 0;
-	for(int x = 1; x < sizeof(sample)-2; x++){
-		temp[x-1] = sample[x-1] + sample[x] + sample[x+1]; // find median of the window 
-		temp[x-1] -= fmax(sample[x-1], fmax(sample[x+1],sample[x]));
-		temp[x-1] -= fmin(sample[x-1], fmin(sample[x+1],sample[x]));
-	 	sum += temp[x-1];
-		count++;
-	}
-	
-	q++;
-	
-	if(q <= 5){
-		q=0;
-	    return calculateMedian(temp);
-	}
-	else{
-		return (float)sum/count;
-	}
-}
-
-
 
 static State stateMoveStepper() {
   static int64_t prevtime_ns = 0;

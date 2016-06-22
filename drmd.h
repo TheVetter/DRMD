@@ -11,6 +11,7 @@
 #include <math.h>
 
 
+
 // Use with bcm2835_gpio_fsel(PIN, INPUT/OUTPUT)
 #define INPUT     BCM2835_GPIO_FSEL_INPT // Pin input mode
 #define OUTPUT    BCM2835_GPIO_FSEL_OUTP // Pin output mode
