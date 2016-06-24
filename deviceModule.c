@@ -2,31 +2,28 @@
 #include "Python.h"
 
 
-// typedef enum { TRUE, FALSE } Bool;
-// typedef enum { MOVE_STEPPER, READ_UV, UI } State;
-
-static void       cleanAndExit();
+       void       cleanAndExit(void);
 static void       configInput(uint8_t, uint8_t);
 static void       configOutput(uint8_t, uint8_t);
-static int64_t    getTimestampNs();
-static int        initialize();
-// static void       interrupt(int);
-// static State      machine(State);
+       int64_t    getTimestampNs(void);
+ 	int       initialize(void);
 static uint8_t    readPin(uint8_t);
 static void       sleepNs(long);
-static int 		  moveStepperToTarget(int)
-static int        readUV();
+ 	int	  moveStepperToTarget(int);
+ 	int       readUV(void);
+ int moveStepperToTarget(int);
 
-// static State      stateUI();
-static void       writeToPin(uint8_t, uint8_t);
+static PyObject*  moveStepper(PyObject*, PyObject*);
+static PyObject*  getUVSample(PyObject*);
+static PyObject*  initializeDevice(PyObject* );
+//PyMODINIT_FUNC    initdeviceModule(PyObject*);
 
-// static Bool       sigint_set = FALSE;
-// static State      state = UI;
-static uint8_t    buffer[2];
-static uint16_t   voltage;
-static int        stepper_position = 0; // In microsteps, not mm
-// static int        stepper_target = 0; // In microsteps, not mm
-static uint16_t   stepper_rpm = 100;
+void       writeToPin(uint8_t, uint8_t);
+uint8_t    buffer[2];
+uint16_t   voltage;
+int        stepper_position = 0; // In microsteps, not mm
+
+uint16_t   stepper_rpm = 100;
 
 #define MIN_RPM         50
 #define MAX_RPM         800
@@ -49,7 +46,7 @@ static uint16_t   stepper_rpm = 100;
   // return 0;
 // }
 
-static void cleanAndExit() {
+void cleanAndExit(void) {
   configInput(PDN1, PULLDOWN);
   configInput(PDN3, PULLDOWN);
 
@@ -79,13 +76,13 @@ static void configOutput(uint8_t pin, uint8_t logiclevel) {
   writeToPin(pin, logiclevel);
 }
 
-static int64_t getTimestampNs() {
+ int64_t getTimestampNs() {
   struct timespec currenttime;
   clock_gettime(CLOCK_MONOTONIC, &currenttime);
   return currenttime.tv_sec * 1e9 + currenttime.tv_nsec;
 }
 
-static void writeToPin(uint8_t pin, uint8_t logiclevel) {
+ void writeToPin(uint8_t pin, uint8_t logiclevel) {
   bcm2835_gpio_write(pin, logiclevel);
 }
 
@@ -97,28 +94,28 @@ static PyObject* cleanUp(PyObject* self){
 static PyMethodDef module_methods[] = {
     { "moveStepper", (PyCFunction)moveStepper, METH_VARARGS, "move the Stepper motor in mm" },
     { "getUVsample", (PyCFunction)getUVSample, METH_NOARGS, "get a sample from the uv PD" },
-    { "cleanUp", (PyCFunction)cleanUp, METH_NOARGS, "kill running stuff" },
-	{ "initDevice", (PyCFunction)initDevice, METH_NOARGS, "initialize stuff" },
+    { "cleanUp",     (PyCFunction)cleanUp, METH_NOARGS, "kill running stuff" },
+    { "initDevice",  (PyCFunction)initializeDevice, METH_NOARGS, "initialize stuff" },
     { NULL, NULL, 0, NULL }
 };
 
 
 
-PyMODINIT_FUNC initDevice() {
+PyMODINIT_FUNC initdeviceModule() {
   
-  Py_InitModule3(initializeDevice, module_methods, "docstring...");
+  Py_InitModule(initializeDevice, module_methods, "docstring...");
 }
 
-static PyObject* initDevice(PyObject* self){
+static PyObject* initializeDevice(PyObject* self){
 	
 	if(initialize()!= 0){
-		Py_BuildValue("i", 1)// deveice init properly 
+		Py_BuildValue("i", 1);// deveice init properly 
 	}
 	
-	Py_BuildValue("i", 0)// deveice didn't init properly
+	Py_BuildValue("i", 0);// deveice didn't init properly
 }
 
-static int initialize() {
+ int initialize() {
   if (!bcm2835_init()) {
     printf("Error: bcm2835_init failed. Must run as root.\n");
     return 1;
@@ -153,28 +150,7 @@ static int initialize() {
   return 0;
 }
 
-// // static void interrupt(int signo) {
-  // // if (signo == SIGINT) {
-    // // if (state == UI) {
-      // // printf("\n");
-      // // cleanAndExit();
-    // // } else if (state == MOVE_STEPPER) {      
-      // // configOutput(nENBL, HIGH); // Disable output drivers
-    // // }
-    // // sigint_set = TRUE;
-  // // }
-// }
 
-// static State machine(State state) {
-  // switch (state) {
-    // case MOVE_STEPPER:
-      // return stateMoveStepper();
-    // case READ_UV:
-      // return stateReadUV();
-    // case UI:
-      // return stateUI();
-  // }
-// }
 
 static uint8_t readPin(uint8_t pin) {
   return bcm2835_gpio_lev(pin);
@@ -226,7 +202,7 @@ int checkTargetPosition(int distance_mm) {
 
 
 //toggle led state 
-static void setLED(int state){
+void setLED(int state){
 	if(state != 0){
 		writeToPin(PDN1, HIGH); // turn led on 
 	
@@ -279,7 +255,7 @@ int readUV() {
 
 
 // return true if at target 
-static int moveStepperToTarget(int stepper_target) {
+ int moveStepperToTarget(int stepper_target) {
 	int64_t startTime_ns = getTimestampNs();
 	
 	int64_t step_interval_ns = 60e9 / ((int64_t) stepper_rpm * USTEP_PER_REV);
@@ -324,71 +300,4 @@ static int moveStepperToTarget(int stepper_target) {
 		return moveStepperToTarget(stepper_target);
 	}
 }
-
-// static State stateUI() {
-  // static char command[100];
-
-  // printf("> ");
-  // fgets(command, 100, stdin);
-
-  // if (strncmp(command, "exit", 4) == 0) {
-    // cleanAndExit();
-  // } else if (strncmp(command, "read uv", 7) == 0) {
-    // printf("Press (ctrl+c) to stop.\n");
-    // return READ_UV;
-  // } else if (strncmp(command, "move", 4) == 0) 
-  
-  // {
-    // float distance_mm = 0;
-    
-    // if (command[4] != '\0' && command[5] != '\0') {
-      // if (sscanf(&command[5], "%f", &distance_mm)) {
-        // if (setTargetPosition(distance_mm)) return UI;
-
-        // writeToPin(nENBL, LOW); // Enable output drivers
-        // printf("Moving %d micrometers... Press (ctrl+c) to stop.\n", (stepper_target-stepper_position)*10/64);
-        // sleepNs(1e6); // Allow drivers time to enable
-        // return MOVE_STEPPER;
-      // } else {
-        // printf("Error: Distance must be an integer.\n");
-      // }
-    // } else {
-      // printf("Error: Must provide an integer distance X to move (move stepper X).\n");
-    // }
-  // } else if (strncmp(command, "stepper rpm", 11) == 0) {
-    // int rpm = 0;
-    
-    // if (command[11] != '\0' && command[12] != '\0') {
-      // if (sscanf(&command[12], "%d", &rpm)) {
-        // if (rpm >= MIN_RPM && rpm <= MAX_RPM) {
-          // stepper_rpm = (uint16_t) rpm;
-          // printf("Stepper speed successfully set to %d rpm.\n", stepper_rpm);
-        // } else {
-          // printf("Error: rpm must be between %d and %d inclusive.\n", MIN_RPM, MAX_RPM);
-        // }
-      // } else {
-        // printf("Error: Third parameter must be an integer.\n");
-      // }
-    // } else {
-      // printf("Error: Must provide an integer rpm X (stepper rpm X).\n");
-    // }
-  // } else if (strncmp(command, "pump on", 7) == 0) {
-    // writeToPin(PDN3, HIGH);
-    // printf("Peristaltic pump successfully activated.\n");
-  // } else if (strncmp(command, "pump off", 8) == 0) {
-    // writeToPin(PDN3, LOW);
-    // printf("Peristaltic pump successfully deactivated.\n");
-  // } else if (strncmp(command, "uv on", 5) == 0) {
-    // writeToPin(PDN1, HIGH);
-    // printf("UV LED successfully activated.\n");
-  // } else if (strncmp(command, "uv off", 6) == 0) {
-    // writeToPin(PDN1, LOW);
-    // printf("UV LED successfully deactivated.\n");
-  // } else {
-    // printf("Error: Invalid command.\n");
-  // }
-
-  // return UI;
-// }
-
 
