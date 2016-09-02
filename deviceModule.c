@@ -6,17 +6,16 @@
 static void       configInput(uint8_t, uint8_t);
 static void       configOutput(uint8_t, uint8_t);
        int64_t    getTimestampNs(void);
- 	int       initialize(void);
+ 	   int        initialize(void);
 static uint8_t    readPin(uint8_t);
 static void       sleepNs(long);
- 	int	  moveStepperToTarget(int);
- 	int       readUV(void);
- int moveStepperToTarget(int);
+ 	    int	      moveStepperToTarget(int);
+ 	    int       readUV(void);
+        int moveStepperToTarget(int);
 
 static PyObject*  moveStepper(PyObject*, PyObject*);
 static PyObject*  getUVSample(PyObject*);
 static PyObject*  initializeDevice(PyObject* );
-//PyMODINIT_FUNC    initdeviceModule(PyObject*);
 
 void       writeToPin(uint8_t, uint8_t);
 uint8_t    buffer[2];

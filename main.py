@@ -2,8 +2,7 @@ import deviceModule
 
 deviceModule.initDevice()
 
-while not x >= 100: {
-    print(deviceModule.getUVsample())
-    x++
+while x <= 100:
+    print(deviceModule.getUVsample)
+    x += 1
 
-}
